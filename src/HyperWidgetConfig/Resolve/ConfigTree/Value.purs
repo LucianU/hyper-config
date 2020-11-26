@@ -10,6 +10,7 @@ module HyperWidgetConfig.Resolve.ConfigTree.Value
   ) where
 
 import Prelude
+
 import Data.Exists (Exists, mkExists, runExists)
 import Data.Identity (Identity(..))
 import Data.Maybe (Maybe)
@@ -37,8 +38,10 @@ instance eqValue :: Eq Value where
     | t == t' = case t of
       RuntimeInt -> runAny unsafeCoerce a == (runAny unsafeCoerce b :: Int)
       RuntimeNumber -> runAny unsafeCoerce a == (runAny unsafeCoerce b :: Number)
+      RuntimeVariant _ -> unsafeStringify a == unsafeStringify b
       RuntimeRecord _ -> unsafeStringify a == unsafeStringify b -- WARN: not ideal, but how do we check for it anyway
       RuntimeString -> runAny unsafeCoerce a == (runAny unsafeCoerce b :: String)
+      RuntimeUnit -> runAny unsafeCoerce a == (runAny unsafeCoerce b :: Unit)
       RuntimeReference r ->
         let
           ra = unsafeCoerce a :: Reference Any
@@ -59,9 +62,11 @@ showTypedAny t a = case t of
   RuntimeInt -> show $ (runAny unsafeCoerce a :: Int)
   RuntimeNumber -> show $ (runAny unsafeCoerce a :: Number)
   RuntimeString -> runAny unsafeCoerce a :: String
+  RuntimeUnit -> show $ (runAny unsafeCoerce a :: Unit)
   RuntimeReference r -> case unsafeCoerce a :: Reference Any of
     Reference str -> "(Reference " <> str <> ")"
     Literal la -> showTypedAny r la
+  RuntimeVariant _ -> unsafeStringify a
   RuntimeRecord _ -> unsafeStringify a -- WARN: not ideal, but how do we do that anyway
 
 mkValue :: forall a. Reify a => a -> Value

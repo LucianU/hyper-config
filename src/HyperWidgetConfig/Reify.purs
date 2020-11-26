@@ -10,12 +10,15 @@ module HyperWidgetConfig.Reify
   ) where
 
 import Prelude
+
 import Data.Eq (class EqRecord)
 import Data.List (List(..), (:))
 import Data.Maybe (Maybe(..))
 import Data.SubRecord (class EqSubRecord, SubRecord)
 import Data.Symbol (class IsSymbol, SProxy(..), reflectSymbol)
 import Data.Tuple (Tuple(..))
+import Data.Variant (class VariantEqs, Variant)
+import Data.Variant.Internal (class VariantTags)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import HyperWidgetConfig.Reference (Reference)
@@ -29,7 +32,9 @@ data RuntimeType
   = RuntimeInt
   | RuntimeNumber
   | RuntimeString
+  | RuntimeUnit
   | RuntimeReference RuntimeType
+  | RuntimeVariant (Object RuntimeType)
   | RuntimeRecord (Object RuntimeType)
 
 derive instance eqRuntimeType :: Eq RuntimeType
@@ -40,7 +45,9 @@ instance showRuntimeType :: Show RuntimeType where
     RuntimeInt -> "RuntimeInt"
     RuntimeNumber -> "RuntimeNumber"
     RuntimeString -> "RuntimeString"
+    RuntimeUnit -> "RuntimeUnit"
     RuntimeReference runtimeType -> "(RuntimeReference " <> show runtimeType <> ")"
+    RuntimeVariant obj -> "(RuntimeVariant " <> show obj <> ")"
     RuntimeRecord obj -> "(RuntimeRecord " <> show obj <> ")"
 
 unreify :: forall a. Reify a => RuntimeType -> Maybe (Proxy a)
@@ -63,8 +70,14 @@ instance reifyNumber :: Reify Number where
 instance reifyString :: Reify String where
   reify _ = RuntimeString
 
+instance reifyUnit :: Reify Unit where
+  reify _ = RuntimeUnit
+
 instance reifyReference :: Reify a => Reify (Reference a) where
   reify _ = RuntimeReference $ reify (Proxy :: Proxy a)
+
+instance reifyVariant :: (RL.RowToList row list, VariantTags list, VariantEqs list, ReifyRowList list) => Reify (Variant row) where
+  reify = RuntimeVariant <<< reifyVariant'
 
 instance reifyRecord :: (EqRecord list row, RL.RowToList row list, ReifyRowList list) => Reify (Record row) where
   reify = RuntimeRecord <<< reifyRecord'
@@ -77,6 +90,9 @@ reifyRecord' _ = Object.fromFoldable (reifyRowList (RLProxy :: RLProxy list))
 
 reifySubRecord' :: forall row list. RL.RowToList row list => ReifyRowList list => Proxy (SubRecord row) -> Object RuntimeType
 reifySubRecord' _ = reifyRecord' (Proxy :: Proxy (Record row))
+
+reifyVariant' :: forall row list. RL.RowToList row list => ReifyRowList list => Proxy (Variant row) -> Object RuntimeType
+reifyVariant' _ = reifyRecord' (Proxy :: Proxy (Record row))
 
 class ReifyRowList rowlist where
   reifyRowList :: RLProxy rowlist -> List (Tuple String RuntimeType)
